@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/pkg/term"
+	"github.com/mndrix/term"
 )
 
 func getch() []byte {
