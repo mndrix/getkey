@@ -10,19 +10,75 @@ import (
 	"unicode"
 
 	"github.com/mndrix/term"
+	"github.com/pkg/errors"
 )
 
-func getch() []byte {
-	t, _ := term.Open("/dev/tty")
-	term.RawMode(t)
-	bytes := make([]byte, 15)
-	numRead, err := t.Read(bytes)
-	t.Restore()
-	t.Close()
+// Terminal represents a terminal which has been prepared for fetching
+// single keystrokes.
+type Terminal struct {
+	// term is the way we interact with the underlying terminal device
+	term *term.Term
+
+	// buf is a buffer into which raw terminal escape sequences are
+	// read
+	buf []byte
+}
+
+// Prepare opens and configures the terminal so that a single
+// character can be fetched with high precision.  When finished
+// reading characters from the terminal, invoke the Restore method.
+func Prepare() (*Terminal, error) {
+	var err error
+	t := &Terminal{}
+	t.term, err = term.Open("/dev/tty")
 	if err != nil {
-		return nil
+		return nil, errors.Wrap(err, "preparing terminal")
 	}
-	return bytes[0:numRead]
+
+	term.RawMode(t.term)
+	t.buf = make([]byte, 15)
+
+	// TODO should probably use termcap or something
+	term := os.Getenv("TERM")
+	if term == "xterm" || strings.HasPrefix(term, "xterm-") {
+		// TODO
+		// if bash is capturing our stdout into a variable,
+		// these escapes cause the variable to include escape codes
+		// so comparing it against "Ctrl-n" (for example) always
+		// returns false.
+		// Maybe sending it to stderr would work?
+		// Maybe sending it directly to /dev/tty would work?
+
+		//fmt.Print("\x1b[>4;2m")     // xterm: set modifyOtherKeys=2
+		//fmt.Print("x")              // xterm eats this character
+		// defer fmt.Print("\x1b[>4m") // xterm: restore modifyOtherKeys
+	}
+
+	return t, nil
+}
+
+// read returns a sequence of raw bytes read from the terminal.
+func (t *Terminal) read() ([]byte, error) {
+	numRead, err := t.term.Read(t.buf)
+	if err != nil {
+		return nil, errors.Wrap(err, "reading")
+	}
+
+	return t.buf[0:numRead], nil
+}
+
+// Restore returns the terminal to its original state.  It should be
+// called when you're done reading single characters from the
+// terminal.
+func (t *Terminal) Restore() error {
+	err := t.term.Restore()
+	if err == nil {
+		err = t.term.Close()
+	}
+	if err != nil {
+		return errors.Wrap(err, "restoring")
+	}
+	return nil
 }
 
 func main() {
@@ -38,20 +94,27 @@ func main() {
 
 	// see https://emacs.stackexchange.com/a/13957/ for great detail
 
-	term := os.Getenv("TERM")
-	if term == "xterm" || strings.HasPrefix(term, "xterm-") {
-		fmt.Print("\x1b[>4;2m")     // xterm: set modifyOtherKeys=2
-		fmt.Print("x")              // xterm eats this character
-		defer fmt.Print("\x1b[>4m") // xterm: restore modifyOtherKeys
+	t, err := Prepare()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s", err)
+		os.Exit(1)
 	}
+	defer t.Restore()
+
 	for i := 0; i < *n; i++ {
 		if *p != "" {
 			os.Stdout.Write([]byte(*p))
 		}
-		c := getch()
+		c, err := t.read()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %s", err)
+			os.Exit(1)
+		}
 		if *p != "" {
 			fmt.Print("\n")
 		}
+
+		// TODO move all this decoding into `func (t *Terminal) GetCh() string`
 		s := string(c)
 		debugf("raw: %v %q\n", c, s)
 		if len(c) == 1 {
