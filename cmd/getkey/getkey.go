@@ -7,39 +7,35 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/mndrix/term"
 	"github.com/pkg/errors"
 )
 
-// Terminal represents a terminal which has been prepared for fetching
-// single keystrokes.
-type Terminal struct {
-	// term is the way we interact with the underlying terminal device
-	term *term.Term
+var terminal *term.Term
+var envTerm string
+var buf []byte
+var mux sync.Mutex
 
-	// buf is a buffer into which raw terminal escape sequences are
-	// read
-	buf []byte
-}
+var isDebug bool
 
-// Prepare opens and configures the terminal so that a single
-// character can be fetched with high precision.  When finished
-// reading characters from the terminal, invoke the Restore method.
-func Prepare() (*Terminal, error) {
+func init() {
 	var err error
-	t := &Terminal{}
-	t.term, err = term.Open("/dev/tty")
+	terminal, err = term.Open("/dev/tty")
 	if err != nil {
-		return nil, errors.Wrap(err, "preparing terminal")
+		panic(err)
 	}
 
-	t.buf = make([]byte, 15)
+	envTerm = os.Getenv("TERM")
+	buf = make([]byte, 15)
+}
 
+// should only be called while holding mutex
+func prepare() {
 	// TODO should probably use termcap or something
-	term := os.Getenv("TERM")
-	if term == "xterm" || strings.HasPrefix(term, "xterm-") {
+	if envTerm == "xterm" || strings.HasPrefix(envTerm, "xterm-") {
 		// TODO
 		// if bash is capturing our stdout into a variable,
 		// these escapes cause the variable to include escape codes
@@ -50,69 +46,61 @@ func Prepare() (*Terminal, error) {
 
 		//fmt.Print("\x1b[>4;2m")     // xterm: set modifyOtherKeys=2
 		//fmt.Print("x")              // xterm eats this character
-		// defer fmt.Print("\x1b[>4m") // xterm: restore modifyOtherKeys
 	}
-
-	return t, nil
 }
 
-// read returns a sequence of raw bytes read from the terminal.
-func (t *Terminal) read() ([]byte, error) {
-	term.RawMode(t.term)
-	defer t.term.Restore()
-	numRead, err := t.term.Read(t.buf)
+// should only be called while holding mutex
+func restore() {
+	if envTerm == "xterm" || strings.HasPrefix(envTerm, "xterm-") {
+		// fmt.Print("\x1b[>4m") // xterm: restore modifyOtherKeys
+	}
+}
+
+// returns a sequence of raw bytes read from the terminal.
+// should only be called while holding mutex.
+func read() ([]byte, error) {
+	mux.Lock()
+	defer mux.Unlock()
+
+	term.RawMode(terminal)
+	defer terminal.Restore()
+
+	prepare()
+	defer restore()
+
+	numRead, err := terminal.Read(buf)
 	if err != nil {
 		return nil, errors.Wrap(err, "reading")
 	}
 
-	return t.buf[0:numRead], nil
+	return buf[0:numRead], nil
 }
 
-// GetCh waits for the user to press a key and then returns a string
+// GetKey waits for the user to press a key and then returns a string
 // representing what was pressed.  Alphanumeric characters and
 // punctuation are represented as themselves.  Modifier keys are
 // represented as Alt-, Ctrl-, Esc-, and Shift- prefixes (in that
 // order) on the base key.  For example, holding down Control and Alt
 // while pressing the L key produces "Alt-Ctrl-L".
-func (t *Terminal) GetCh() (string, error) {
-	raw, err := t.read()
+func GetKey() (string, error) {
+	raw, err := read()
 	if err != nil {
-		return "", errors.Wrap(err, "GetCh")
+		return "", errors.Wrap(err, "GetKey")
 	}
 	return decode(raw)
 }
 
-// Restore returns the terminal to its original state.  It should be
-// called when you're done reading single characters from the
-// terminal.
-func (t *Terminal) Restore() error {
-	err := t.term.Close()
-	if err != nil {
-		return errors.Wrap(err, "restoring")
-	}
-	return nil
-}
-
 func main() {
-	//var d = flag.Bool("d", false, "enable debug mode")
+	flag.BoolVar(&isDebug, "d", false, "enable debug mode")
 	var n = flag.Int("n", 1, "number of key presses to read")
 	var p = flag.String("p", "", "prompt before awaiting a key")
 	flag.Parse()
-
-	// see https://emacs.stackexchange.com/a/13957/ for great detail
-
-	t, err := Prepare()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s", err)
-		os.Exit(1)
-	}
-	defer t.Restore()
 
 	for i := 0; i < *n; i++ {
 		if *p != "" {
 			os.Stdout.Write([]byte(*p))
 		}
-		c, err := t.GetCh()
+		c, err := GetKey()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %s", err)
 			os.Exit(1)
@@ -127,7 +115,7 @@ func main() {
 }
 
 func debugf(format string, args ...interface{}) {
-	if false {
+	if isDebug {
 		fmt.Printf("DEBUG: "+format+"\n", args...)
 	}
 }
@@ -135,7 +123,7 @@ func debugf(format string, args ...interface{}) {
 // decode a single sequence of raw bytes from the terminal
 func decode(c []byte) (string, error) {
 	s := string(c)
-	debugf("raw: %v %q\n", c, s)
+	debugf("raw: %v %q", c, s)
 	if len(c) == 1 {
 		debugf("single character")
 		r := rune(c[0])
