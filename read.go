@@ -1,0 +1,83 @@
+package getkey // import "github.com/mndrix/getkey"
+import (
+	"os"
+	"strings"
+	"sync"
+
+	"github.com/mndrix/term"
+	"github.com/pkg/errors"
+)
+
+var terminal *term.Term
+var envTerm string
+var buf []byte
+var mux sync.Mutex
+
+func init() {
+	var err error
+	terminal, err = term.Open("/dev/tty")
+	if err != nil {
+		panic(err)
+	}
+
+	envTerm = os.Getenv("TERM")
+	buf = make([]byte, 15)
+}
+
+// should only be called while holding mutex
+func prepare() {
+	// TODO should probably use termcap or something
+	if envTerm == "xterm" || strings.HasPrefix(envTerm, "xterm-") {
+		// TODO
+		// if bash is capturing our stdout into a variable,
+		// these escapes cause the variable to include escape codes
+		// so comparing it against "Ctrl-n" (for example) always
+		// returns false.
+		// Maybe sending it to stderr would work?
+		// Maybe sending it directly to /dev/tty would work?
+
+		//fmt.Print("\x1b[>4;2m")     // xterm: set modifyOtherKeys=2
+		//fmt.Print("x")              // xterm eats this character
+	}
+}
+
+// should only be called while holding mutex
+func restore() {
+	if envTerm == "xterm" || strings.HasPrefix(envTerm, "xterm-") {
+		// fmt.Print("\x1b[>4m") // xterm: restore modifyOtherKeys
+	}
+}
+
+// returns a sequence of raw bytes read from the terminal.
+// should only be called while holding mutex.
+func read() ([]byte, error) {
+	mux.Lock()
+	defer mux.Unlock()
+
+	term.RawMode(terminal)
+	defer terminal.Restore()
+
+	prepare()
+	defer restore()
+
+	numRead, err := terminal.Read(buf)
+	if err != nil {
+		return nil, errors.Wrap(err, "reading")
+	}
+
+	return buf[0:numRead], nil
+}
+
+// GetKey waits for the user to press a key and then returns a string
+// describing what was pressed.  Alphanumeric characters and
+// punctuation are represented as themselves.  Modifier keys are
+// represented as Alt-, Ctrl-, Esc-, and Shift- prefixes (in that
+// order) on the base key.  For example, holding down Control and Alt
+// while pressing the L key produces "Alt-Ctrl-L".
+func GetKey() (string, error) {
+	raw, err := read()
+	if err != nil {
+		return "", errors.Wrap(err, "GetKey")
+	}
+	return decode(raw)
+}
