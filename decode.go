@@ -123,6 +123,10 @@ func csiTilde(args []int) (string, error) {
 		return "Delete", nil
 	case 4:
 		return "End", nil
+	case 5:
+		return "PageUp", nil
+	case 6:
+		return "PageDown", nil
 	case 15:
 		return "F5", nil
 	case 17:
