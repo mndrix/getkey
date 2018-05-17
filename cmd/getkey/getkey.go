@@ -35,7 +35,6 @@ func Prepare() (*Terminal, error) {
 		return nil, errors.Wrap(err, "preparing terminal")
 	}
 
-	term.RawMode(t.term)
 	t.buf = make([]byte, 15)
 
 	// TODO should probably use termcap or something
@@ -59,6 +58,8 @@ func Prepare() (*Terminal, error) {
 
 // read returns a sequence of raw bytes read from the terminal.
 func (t *Terminal) read() ([]byte, error) {
+	term.RawMode(t.term)
+	defer t.term.Restore()
 	numRead, err := t.term.Read(t.buf)
 	if err != nil {
 		return nil, errors.Wrap(err, "reading")
@@ -71,10 +72,7 @@ func (t *Terminal) read() ([]byte, error) {
 // called when you're done reading single characters from the
 // terminal.
 func (t *Terminal) Restore() error {
-	err := t.term.Restore()
-	if err == nil {
-		err = t.term.Close()
-	}
+	err := t.term.Close()
 	if err != nil {
 		return errors.Wrap(err, "restoring")
 	}
