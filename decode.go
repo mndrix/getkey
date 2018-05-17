@@ -1,5 +1,6 @@
 package getkey // import "github.com/mndrix/getkey"
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -7,12 +8,15 @@ import (
 	"unicode"
 )
 
+var csiRx = regexp.MustCompile(`^([0-9;]*)([^0-9])$`)
+
 // decode a single sequence of raw bytes from the terminal
 func decode(c []byte) (string, error) {
 	s := string(c)
 	debugf("raw: %v %q", c, s)
+
 	if len(c) == 1 {
-		debugf("single character")
+		debugf("single byte")
 		r := rune(c[0])
 		if name := runeName(r); name != "" {
 			return name, nil
@@ -25,104 +29,114 @@ func decode(c []byte) (string, error) {
 		}
 		debugf("fallthrough")
 	}
+
+	// parse CSI escapes
 	if strings.HasPrefix(s, "\x1b[") {
-		s = strings.TrimPrefix(s, "\x1b[")
-		rx := regexp.MustCompile(`^([0-9;]*)([^0-9])$`)
-		matches := rx.FindStringSubmatch(s)
-		debugf("matches = %v", matches)
-		if matches != nil {
-			argStrings := strings.Split(matches[1], ";")
-			args := make([]int, 0, len(argStrings))
-			for _, argString := range argStrings {
-				if argString != "" {
-					arg, err := strconv.Atoi(argString)
-					if err != nil {
-						panic(err)
-					}
-					args = append(args, arg)
-				}
-			}
-			debugf("args = %v", args)
-
-			// TODO matches[2] should select a function
-			// TODO call that function with args
-			// TODO like: switch matches[2] { case "~": tilde(args...) }
-
-			switch matches[2] {
-			case "~":
-				if args[0] == 27 {
-					r := rune(args[2])
-
-					modifier := "?-"
-					switch args[1] {
-					case 2:
-						modifier = ""
-						if !unicode.IsPrint(r) {
-							modifier += "Shift-"
-						}
-					case 3:
-						modifier = "Alt-"
-					case 4:
-						modifier = "Alt-"
-						if !unicode.IsPrint(r) {
-							modifier += "Shift-"
-						}
-					case 5:
-						modifier = "Ctrl-"
-					case 6:
-						modifier = "Ctrl-"
-						if !unicode.IsPrint(r) {
-							modifier += "Shift-"
-						}
-					case 7:
-						modifier = "Ctrl-Alt-"
-					case 8:
-						modifier = "Ctrl-Alt-"
-						if !unicode.IsPrint(r) {
-							modifier += "Shift-"
-						}
-					}
-					return modifier + runeName(r), nil
-				}
-			case "H":
-				switch len(args) {
-				case 0:
-					return "Home", nil
-				case 2:
-					// "1;2H" is Shift-Home
-					// "1;3H" is Alt-Home
-					// "1;5H" is Ctrl-Home
-				}
-			}
+		if name, err := parseCsi(s); err == nil {
+			return name, nil
+		} else {
+			return s, nil
 		}
-		/*
-			} else if s == "2~" {
-				fmt.Println("Insert")
-				continue
-			} else if s == "F" {
-				fmt.Println("End")
-				continue
-			} else if s == "Z" {
-				fmt.Println("Shift-Tab")
-				continue
-			} else if false {
-				// regexp: ^([0-9;]*)([^0-9])$
+	}
 
-				// "2~"   is Insert
-				// "2;3~" is Alt-Insert
-				// "2;5~" is Ctrl-Insert
+	// parse function key escapes
+	if strings.HasPrefix(s, "\x1bO") {
+		if name, err := parseFn(s); err == nil {
+			return name, nil
+		} else {
+			return s, nil
+		}
+	}
 
-				// "3;5~" is Ctrl-Delete
-				// "3;2~" is Shift-Delete
+	return s, nil
+}
 
-				// "1;2F" is Shift-End
-				// "1;3F" is Alt-End
-				// "1;5F" is Ctrl-End
+func parseCsi(s string) (string, error) {
+	debugf("CSI")
+	s = strings.TrimPrefix(s, "\x1b[")
+	matches := csiRx.FindStringSubmatch(s)
+	debugf("matches = %v", matches)
+	if matches == nil {
+		return s, nil
+	}
 
+	argStrings := strings.Split(matches[1], ";")
+	args := make([]int, 0, len(argStrings))
+	for _, argString := range argStrings {
+		if argString != "" {
+			arg, err := strconv.Atoi(argString)
+			if err != nil {
+				panic(err)
 			}
-		*/
+			args = append(args, arg)
+		}
+	}
+	debugf("args = %v", args)
+
+	switch matches[2] {
+	case "~":
+		return csiTilde(args)
+	case "A":
+		return "Up", nil
+	case "B":
+		return "Down", nil
+	case "C":
+		return "Right", nil
+	case "D":
+		return "Left", nil
 	}
 	return s, nil
+}
+
+func parseFn(s string) (string, error) {
+	debugf("Fn")
+	s = strings.TrimPrefix(s, "\x1bO")
+	if s == "" {
+		return s, errors.New("Fn escape missing")
+	}
+
+	switch s {
+	case "P":
+		return "F1", nil
+	case "Q":
+		return "F2", nil
+	case "R":
+		return "F3", nil
+	case "S":
+		return "F4", nil
+	}
+	return s, nil
+}
+
+func csiTilde(args []int) (string, error) {
+	debugf("CSI ~")
+	switch args[0] {
+	case 1:
+		return "Home", nil
+	case 2:
+		return "Insert", nil
+	case 3:
+		return "Delete", nil
+	case 4:
+		return "End", nil
+	case 15:
+		return "F5", nil
+	case 17:
+		return "F6", nil
+	case 18:
+		return "F7", nil
+	case 19:
+		return "F8", nil
+	case 20:
+		return "F9", nil
+	case 21:
+		return "F10", nil
+	case 23:
+		return "F11", nil
+	case 24:
+		return "F12", nil
+	}
+	return "", fmt.Errorf("unknown CSI ~ escape: %+v", args)
 }
 
 func runeName(r rune) string {
