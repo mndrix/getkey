@@ -76,6 +76,8 @@ func parseCsi(s string) (string, error) {
 	switch matches[2] {
 	case "~":
 		return csiTilde(args)
+	case "h":
+		return csih(args)
 	case "A":
 		return "Up", nil
 	case "B":
@@ -88,6 +90,8 @@ func parseCsi(s string) (string, error) {
 		return "End", nil
 	case "H": // xterm sends this
 		return "Home", nil
+	case "P": // st sends this
+		return "Backspace", nil
 	}
 	return s, nil
 }
@@ -145,6 +149,15 @@ func csiTilde(args []int) (string, error) {
 		return "F12", nil
 	}
 	return "", fmt.Errorf("unknown CSI ~ escape: %+v", args)
+}
+
+func csih(args []int) (string, error) {
+	debugf("CSI h")
+	switch args[0] {
+	case 4: // st sends this
+		return "Insert", nil
+	}
+	return "", fmt.Errorf("unknown CSI h escape: %+v", args)
 }
 
 func runeName(r rune) string {
