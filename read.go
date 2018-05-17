@@ -28,23 +28,15 @@ func init() {
 func prepare() {
 	// TODO should probably use termcap or something
 	if envTerm == "xterm" || strings.HasPrefix(envTerm, "xterm-") {
-		// TODO
-		// if bash is capturing our stdout into a variable,
-		// these escapes cause the variable to include escape codes
-		// so comparing it against "Ctrl-n" (for example) always
-		// returns false.
-		// Maybe sending it to stderr would work?
-		// Maybe sending it directly to /dev/tty would work?
-
-		//fmt.Print("\x1b[>4;2m")     // xterm: set modifyOtherKeys=2
-		//fmt.Print("x")              // xterm eats this character
+		//fmt.Fprint(terminal, "\x1b[>4;2m") // xterm: set modifyOtherKeys=2
+		//fmt.Print("x")                     // xterm eats first character
 	}
 }
 
 // should only be called while holding mutex
 func restore() {
 	if envTerm == "xterm" || strings.HasPrefix(envTerm, "xterm-") {
-		// fmt.Print("\x1b[>4m") // xterm: restore modifyOtherKeys
+		//fmt.Fprint(terminal, "\x1b[>4m") // xterm: restore modifyOtherKeys
 	}
 }
 
