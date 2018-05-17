@@ -1,5 +1,8 @@
 package getkey // import "github.com/mndrix/getkey"
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 var isDebug bool
 
@@ -10,6 +13,6 @@ func SetDebug(enable bool) {
 
 func debugf(format string, args ...interface{}) {
 	if isDebug {
-		fmt.Printf("DEBUG: "+format+"\n", args...)
+		fmt.Fprintf(os.Stderr, "DEBUG: "+format+"\n", args...)
 	}
 }
