@@ -84,6 +84,10 @@ func parseCsi(s string) (string, error) {
 		return "Right", nil
 	case "D":
 		return "Left", nil
+	case "F": // xterm sends this
+		return "End", nil
+	case "H": // xterm sends this
+		return "Home", nil
 	}
 	return s, nil
 }
