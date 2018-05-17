@@ -68,6 +68,20 @@ func (t *Terminal) read() ([]byte, error) {
 	return t.buf[0:numRead], nil
 }
 
+// GetCh waits for the user to press a key and then returns a string
+// representing what was pressed.  Alphanumeric characters and
+// punctuation are represented as themselves.  Modifier keys are
+// represented as Alt-, Ctrl-, Esc-, and Shift- prefixes (in that
+// order) on the base key.  For example, holding down Control and Alt
+// while pressing the L key produces "Alt-Ctrl-L".
+func (t *Terminal) GetCh() (string, error) {
+	raw, err := t.read()
+	if err != nil {
+		return "", errors.Wrap(err, "GetCh")
+	}
+	return decode(raw)
+}
+
 // Restore returns the terminal to its original state.  It should be
 // called when you're done reading single characters from the
 // terminal.
@@ -80,15 +94,10 @@ func (t *Terminal) Restore() error {
 }
 
 func main() {
-	var d = flag.Bool("d", false, "enable debug mode")
+	//var d = flag.Bool("d", false, "enable debug mode")
 	var n = flag.Int("n", 1, "number of key presses to read")
 	var p = flag.String("p", "", "prompt before awaiting a key")
 	flag.Parse()
-	debugf := func(format string, args ...interface{}) {
-		if *d {
-			fmt.Printf("DEBUG: "+format+"\n", args...)
-		}
-	}
 
 	// see https://emacs.stackexchange.com/a/13957/ for great detail
 
@@ -103,7 +112,7 @@ func main() {
 		if *p != "" {
 			os.Stdout.Write([]byte(*p))
 		}
-		c, err := t.read()
+		c, err := t.GetCh()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %s", err)
 			os.Exit(1)
@@ -111,130 +120,134 @@ func main() {
 		if *p != "" {
 			fmt.Print("\n")
 		}
+		fmt.Println(c)
 
-		// TODO move all this decoding into `func (t *Terminal) GetCh() string`
-		s := string(c)
-		debugf("raw: %v %q\n", c, s)
-		if len(c) == 1 {
-			debugf("single character")
-			r := rune(c[0])
-			if name := runeName(r); name != "" {
-				fmt.Println(name)
-				continue
-			}
-			if r == 0 {
-				fmt.Println("Ctrl-" + runeName(' '))
-				continue
-			}
-			if r <= 26 {
-				fmt.Println("Ctrl-" + runeName(rune(r+96)))
-				continue
-			}
-			debugf("fallthrough")
-		}
-		if strings.HasPrefix(s, "\x1b[") {
-			s = strings.TrimPrefix(s, "\x1b[")
-			rx := regexp.MustCompile(`^([0-9;]*)([^0-9])$`)
-			matches := rx.FindStringSubmatch(s)
-			fmt.Printf("matches = %v\n", matches)
-			if matches != nil {
-				argStrings := strings.Split(matches[1], ";")
-				args := make([]int, 0, len(argStrings))
-				for _, argString := range argStrings {
-					if argString != "" {
-						arg, err := strconv.Atoi(argString)
-						if err != nil {
-							panic(err)
-						}
-						args = append(args, arg)
-					}
-				}
-				fmt.Printf("args = %v\n", args)
-
-				// TODO matches[2] should select a function
-				// TODO call that function with args
-				// TODO like: switch matches[2] { case "~": tilde(args...) }
-
-				switch matches[2] {
-				case "~":
-					if args[0] == 27 {
-						r := rune(args[2])
-
-						modifier := "?-"
-						switch args[1] {
-						case 2:
-							modifier = ""
-							if !unicode.IsPrint(r) {
-								modifier += "Shift-"
-							}
-						case 3:
-							modifier = "Alt-"
-						case 4:
-							modifier = "Alt-"
-							if !unicode.IsPrint(r) {
-								modifier += "Shift-"
-							}
-						case 5:
-							modifier = "Ctrl-"
-						case 6:
-							modifier = "Ctrl-"
-							if !unicode.IsPrint(r) {
-								modifier += "Shift-"
-							}
-						case 7:
-							modifier = "Ctrl-Alt-"
-						case 8:
-							modifier = "Ctrl-Alt-"
-							if !unicode.IsPrint(r) {
-								modifier += "Shift-"
-							}
-						}
-						fmt.Printf("%s%s\n", modifier, runeName(r))
-						continue
-					}
-				case "H":
-					switch len(args) {
-					case 0:
-						fmt.Println("Home")
-						continue
-					case 2:
-						// "1;2H" is Shift-Home
-						// "1;3H" is Alt-Home
-						// "1;5H" is Ctrl-Home
-					}
-				}
-			}
-			/*
-				} else if s == "2~" {
-					fmt.Println("Insert")
-					continue
-				} else if s == "F" {
-					fmt.Println("End")
-					continue
-				} else if s == "Z" {
-					fmt.Println("Shift-Tab")
-					continue
-				} else if false {
-					// regexp: ^([0-9;]*)([^0-9])$
-
-					// "2~"   is Insert
-					// "2;3~" is Alt-Insert
-					// "2;5~" is Ctrl-Insert
-
-					// "3;5~" is Ctrl-Delete
-					// "3;2~" is Shift-Delete
-
-					// "1;2F" is Shift-End
-					// "1;3F" is Alt-End
-					// "1;5F" is Ctrl-End
-
-				}
-			*/
-		} else {
-			fmt.Printf("%s\n", s)
-		}
 	}
 	return
+}
+
+func debugf(format string, args ...interface{}) {
+	if false {
+		fmt.Printf("DEBUG: "+format+"\n", args...)
+	}
+}
+
+// decode a single sequence of raw bytes from the terminal
+func decode(c []byte) (string, error) {
+	s := string(c)
+	debugf("raw: %v %q\n", c, s)
+	if len(c) == 1 {
+		debugf("single character")
+		r := rune(c[0])
+		if name := runeName(r); name != "" {
+			return name, nil
+		}
+		if r == 0 {
+			return "Ctrl-" + runeName(' '), nil
+		}
+		if r <= 26 {
+			return "Ctrl-" + runeName(rune(r+96)), nil
+		}
+		debugf("fallthrough")
+	}
+	if strings.HasPrefix(s, "\x1b[") {
+		s = strings.TrimPrefix(s, "\x1b[")
+		rx := regexp.MustCompile(`^([0-9;]*)([^0-9])$`)
+		matches := rx.FindStringSubmatch(s)
+		fmt.Printf("matches = %v\n", matches)
+		if matches != nil {
+			argStrings := strings.Split(matches[1], ";")
+			args := make([]int, 0, len(argStrings))
+			for _, argString := range argStrings {
+				if argString != "" {
+					arg, err := strconv.Atoi(argString)
+					if err != nil {
+						panic(err)
+					}
+					args = append(args, arg)
+				}
+			}
+			fmt.Printf("args = %v\n", args)
+
+			// TODO matches[2] should select a function
+			// TODO call that function with args
+			// TODO like: switch matches[2] { case "~": tilde(args...) }
+
+			switch matches[2] {
+			case "~":
+				if args[0] == 27 {
+					r := rune(args[2])
+
+					modifier := "?-"
+					switch args[1] {
+					case 2:
+						modifier = ""
+						if !unicode.IsPrint(r) {
+							modifier += "Shift-"
+						}
+					case 3:
+						modifier = "Alt-"
+					case 4:
+						modifier = "Alt-"
+						if !unicode.IsPrint(r) {
+							modifier += "Shift-"
+						}
+					case 5:
+						modifier = "Ctrl-"
+					case 6:
+						modifier = "Ctrl-"
+						if !unicode.IsPrint(r) {
+							modifier += "Shift-"
+						}
+					case 7:
+						modifier = "Ctrl-Alt-"
+					case 8:
+						modifier = "Ctrl-Alt-"
+						if !unicode.IsPrint(r) {
+							modifier += "Shift-"
+						}
+					}
+					return modifier + runeName(r), nil
+				}
+			case "H":
+				switch len(args) {
+				case 0:
+					return "Home", nil
+				case 2:
+					// "1;2H" is Shift-Home
+					// "1;3H" is Alt-Home
+					// "1;5H" is Ctrl-Home
+				}
+			}
+		}
+		/*
+			} else if s == "2~" {
+				fmt.Println("Insert")
+				continue
+			} else if s == "F" {
+				fmt.Println("End")
+				continue
+			} else if s == "Z" {
+				fmt.Println("Shift-Tab")
+				continue
+			} else if false {
+				// regexp: ^([0-9;]*)([^0-9])$
+
+				// "2~"   is Insert
+				// "2;3~" is Alt-Insert
+				// "2;5~" is Ctrl-Insert
+
+				// "3;5~" is Ctrl-Delete
+				// "3;2~" is Shift-Delete
+
+				// "1;2F" is Shift-End
+				// "1;3F" is Alt-End
+				// "1;5F" is Ctrl-End
+
+			}
+		*/
+	}
+	return s, nil
 }
 
 func runeName(r rune) string {
