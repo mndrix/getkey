@@ -29,7 +29,7 @@ func decode(c []byte) (string, error) {
 		s = strings.TrimPrefix(s, "\x1b[")
 		rx := regexp.MustCompile(`^([0-9;]*)([^0-9])$`)
 		matches := rx.FindStringSubmatch(s)
-		fmt.Printf("matches = %v\n", matches)
+		debugf("matches = %v", matches)
 		if matches != nil {
 			argStrings := strings.Split(matches[1], ";")
 			args := make([]int, 0, len(argStrings))
@@ -42,7 +42,7 @@ func decode(c []byte) (string, error) {
 					args = append(args, arg)
 				}
 			}
-			fmt.Printf("args = %v\n", args)
+			debugf("args = %v", args)
 
 			// TODO matches[2] should select a function
 			// TODO call that function with args
