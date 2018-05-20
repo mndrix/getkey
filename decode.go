@@ -18,7 +18,7 @@ func init() {
 	}
 
 	// printable ASCII is represented as itself
-	for i := 48; i <= 126; i++ {
+	for i := 33; i <= 126; i++ {
 		s := fmt.Sprintf("%c", i)
 		m[s] = s
 	}
