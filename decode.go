@@ -14,17 +14,13 @@ func init() {
 		k := string([]rune{rune(i)})
 		v := fmt.Sprintf("Ctrl-%c", i+96)
 		//fmt.Fprintf(os.Stderr, "mapping %q to %q\n", k, v)
-		if _, ok := m[k]; !ok {
-			m[k] = v
-		}
+		m[k] = v
 	}
 
 	// printable ASCII is represented as itself
 	for i := 48; i <= 126; i++ {
 		s := fmt.Sprintf("%c", i)
-		if _, ok := m[s]; !ok {
-			m[s] = s
-		}
+		m[s] = s
 	}
 
 	// CSI
