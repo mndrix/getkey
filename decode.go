@@ -21,6 +21,7 @@ func init() {
 	for i := 33; i <= 126; i++ {
 		s := fmt.Sprintf("%c", i)
 		m[s] = s
+		m["\x1b"+s] = "Alt-" + s
 	}
 
 	// CSI
@@ -60,6 +61,7 @@ func init() {
 	m[z+"S"] = "F4"
 
 	// handle some manually (including overwriting mistakes above)
+	m["\x1b"] = "Escape"
 	m["\r"] = "Enter"
 	m["\t"] = "Tab"
 	m["\x00"] = "Ctrl-Space"
