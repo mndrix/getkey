@@ -12,7 +12,8 @@ func init() {
 	// initial control sequences can be generated with Ctrl
 	for i := 0; i <= 26; i++ {
 		k := string([]rune{rune(i)})
-		v := fmt.Sprintf("Ctrl-%c", i+96)
+		offset := 96
+		v := fmt.Sprintf("Ctrl-%c", i+offset)
 		//fmt.Fprintf(os.Stderr, "mapping %q to %q\n", k, v)
 		m[k] = v
 	}
