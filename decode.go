@@ -10,9 +10,12 @@ func init() {
 	m = make(map[string]string, 256*4)
 
 	// initial control sequences can be generated with Ctrl
-	for i := 0; i <= 26; i++ {
+	for i := 0; i <= 31; i++ {
 		k := string([]rune{rune(i)})
 		offset := 96
+		if i >= 27 {
+			offset = 64
+		}
 		v := fmt.Sprintf("Ctrl-%c", i+offset)
 		//fmt.Fprintf(os.Stderr, "mapping %q to %q\n", k, v)
 		m[k] = v
