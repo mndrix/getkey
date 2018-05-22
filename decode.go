@@ -62,6 +62,7 @@ func init() {
 
 	// handle some manually (including overwriting mistakes above)
 	m["\x1b"] = "Escape"
+	m[" "] = "Space"
 	m["\r"] = "Enter"
 	m["\t"] = "Tab"
 	m["\x00"] = "Ctrl-Space"
