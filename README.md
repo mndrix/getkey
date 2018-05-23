@@ -6,4 +6,4 @@ For example run this then press a key combination like Ctrl-Alt-j:
   
 ## Installation
 
-    go get -u github.com/mndrix/getkey/cmd/getkey
+    go get -u github.com/mndrix/getkey/...
