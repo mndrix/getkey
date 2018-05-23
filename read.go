@@ -63,9 +63,9 @@ func read() ([]byte, error) {
 // GetKey waits for the user to press a key and then returns a string
 // describing what was pressed.  Alphanumeric characters and
 // punctuation are represented as themselves.  Modifier keys are
-// represented as Alt-, Ctrl-, Esc-, and Shift- prefixes (in that
+// represented as Ctrl-, Alt-, Esc-, and Shift- prefixes (in that
 // order) on the base key.  For example, holding down Control and Alt
-// while pressing the L key produces "Alt-Ctrl-L".
+// while pressing the L key produces "Ctrl-Alt-L".
 func GetKey() (string, error) {
 	raw, err := read()
 	if err != nil {
