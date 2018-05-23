@@ -81,8 +81,7 @@ func decode(c []byte) (string, error) {
 	s := string(c)
 	debugf("raw: %v %q", c, s)
 	if name, ok := m[s]; ok {
-		debugf("shortcut")
 		return name, nil
 	}
-	return "(unknown)", nil
+	return fmt.Sprintf("%q", s), nil
 }
