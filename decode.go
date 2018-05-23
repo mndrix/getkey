@@ -72,6 +72,7 @@ func init() {
 	m[" "] = "Space"
 	m["\r"] = "Enter"
 	m["\t"] = "Tab"
+	m["\x7f"] = "Backspace"
 	m["\x00"] = "Ctrl-Space"
 	m["\x15"] = "Ctrl-u"
 }
