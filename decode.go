@@ -19,6 +19,9 @@ func init() {
 		v := fmt.Sprintf("Ctrl-%c", i+offset)
 		//fmt.Fprintf(os.Stderr, "mapping %q to %q\n", k, v)
 		m[k] = v
+
+		// same with Alt-Ctrl
+		m["\x1b"+k] = fmt.Sprintf("Alt-Ctrl-%c", i+offset)
 	}
 
 	// printable ASCII is represented as itself
