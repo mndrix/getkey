@@ -19,6 +19,7 @@ func main() {
 	flag.Parse()
 	getkey.SetDebug(d)
 
+	pledge()
 	for i := 0; i < n; i++ {
 		if p != "" {
 			os.Stdout.Write([]byte(p))
