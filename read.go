@@ -4,8 +4,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/mndrix/term"
 	"github.com/pkg/errors"
+	"github.com/pkg/term"
 )
 
 var terminal *term.Term
