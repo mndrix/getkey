@@ -9,7 +9,7 @@ import (
 
 func pledge() {
 	// restrict privileges on OpenBSD
-	err := unix.Pledge("stdio tty", nil)
+	err := unix.PledgePromises("stdio tty")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s", err)
 		os.Exit(1)
