@@ -41,7 +41,6 @@ func restore() {
 }
 
 // returns a sequence of raw bytes read from the terminal.
-// should only be called while holding mutex.
 func read() ([]byte, error) {
 	mux.Lock()
 	defer mux.Unlock()
