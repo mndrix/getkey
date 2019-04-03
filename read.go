@@ -72,3 +72,15 @@ func GetKey() (string, error) {
 	}
 	return decode(raw)
 }
+
+// Restore restores the terminal to the state it was in during init().
+//
+// You don't usually need to call this function because GetKey calls
+// it automatically when it returns.  However, it can be helpful to
+// call during program exit if GetKey was running in a separate
+// goroutine.
+func Restore() (err error) {
+	err = terminal.Restore()
+	restore()
+	return
+}
