@@ -14,14 +14,19 @@ var buf []byte
 var mux sync.Mutex
 
 func init() {
-	var err error
-	terminal, err = term.Open("/dev/tty")
-	if err != nil {
-		panic(err)
-	}
-
 	envTerm = os.Getenv("TERM")
 	buf = make([]byte, 15)
+}
+
+func getTerminal() *term.Term {
+	if terminal == nil {
+		var err error
+		terminal, err = term.Open("/dev/tty")
+		if err != nil {
+			panic(err)
+		}
+	}
+	return terminal
 }
 
 // should only be called while holding mutex
@@ -45,13 +50,13 @@ func read() ([]byte, error) {
 	mux.Lock()
 	defer mux.Unlock()
 
-	term.RawMode(terminal)
-	defer terminal.Restore()
+	term.RawMode(getTerminal())
+	defer getTerminal().Restore()
 
 	prepare()
 	defer restore()
 
-	numRead, err := terminal.Read(buf)
+	numRead, err := getTerminal().Read(buf)
 	if err != nil {
 		return nil, errors.Wrap(err, "reading")
 	}
@@ -80,7 +85,7 @@ func GetKey() (string, error) {
 // call during program exit if GetKey was running in a separate
 // goroutine.
 func Restore() (err error) {
-	err = terminal.Restore()
+	err = getTerminal().Restore()
 	restore()
 	return
 }
